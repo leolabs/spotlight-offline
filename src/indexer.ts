@@ -6,7 +6,7 @@ import Database from "better-sqlite3";
 import systeminformation from "systeminformation";
 import uuid from "node-uuid";
 
-const fs = legacyFs.promises;
+import migration_00 from "./migrations/00_initial";
 
 export interface Device {
   id?: number;
@@ -75,12 +75,7 @@ export default class Indexer {
 
   constructor(dbFolder: string, private blacklist: string[]) {
     this.database = new Database(path.join(dbFolder, "index.db"));
-
-    this.database.exec(
-      legacyFs
-        .readFileSync(path.join(__dirname, "migrations/00_initial.sql"))
-        .toString(),
-    );
+    this.database.exec(migration_00);
   }
 
   async querySpotlight(
