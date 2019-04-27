@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
 import pino from "pino";
-import legacyFs from "fs";
+import fs from "fs-extra";
 import path from "path";
 import Database from "better-sqlite3";
 import systeminformation from "systeminformation";

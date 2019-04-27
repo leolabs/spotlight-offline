@@ -1,12 +1,10 @@
 import chokidar from "chokidar";
-import legacyFs from "fs";
+import fs from "fs-extra";
 import os from "os";
 import path from "path";
 import pino from "pino";
 import Indexer from "./indexer";
 import { startServer } from "./server";
-
-const fs = legacyFs.promises;
 
 const BLACKLIST = ["BOOTCAMP", "GoogleDrive"];
 
