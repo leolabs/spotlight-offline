@@ -8,7 +8,6 @@ import Indexer from "./indexer";
 const fs = legacyFs.promises;
 
 const BLACKLIST = ["BOOTCAMP", "GoogleDrive"];
-const ONLY_BLOCK_DEVICES = true;
 
 const main = async () => {
   const logger = pino({ level: "debug" });
