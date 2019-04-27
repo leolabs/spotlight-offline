@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import pino from "pino";
 import Indexer from "./indexer";
+import { startServer } from "./server";
 
 const fs = legacyFs.promises;
 
@@ -24,6 +25,7 @@ const main = async () => {
   let watchedDevices: string[] = [];
 
   chokidar.watch("/Volumes", { depth: 0 }).on("addDir", async volumePath => {
+    await new Promise(res => setTimeout(res, 1000));
     const volumeLogger = logger.child({ volume: path.basename(volumePath) });
     if (volumePath.split("/").length !== 3) {
       return;
@@ -38,6 +40,8 @@ const main = async () => {
     await indexer.indexVolume(volumePath, volumeLogger);
     watchedDevices.push(volumePath);
   });
+
+  startServer(logger.child({ component: "Server" }), cachePath);
 };
 
 main();
