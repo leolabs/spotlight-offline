@@ -15,7 +15,7 @@
   },
   "scripts": {
     "start": "ts-node src/index.ts | pino-pretty -c -i pid,hostname -t",
-    "build": "electron-builder --dir",
+    "build": "tsc && electron-builder --dir",
     "build:pack": "electron-builder"
   },
   "engines": {
