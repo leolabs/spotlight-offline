@@ -6,6 +6,7 @@ import path from "path";
 import Database from "better-sqlite3";
 import systeminformation from "systeminformation";
 import { spawn } from "child_process";
+import pino from "pino";
 
 const fs = legacyFs.promises;
 
@@ -143,8 +144,8 @@ class Indexer {
     }
   }
 
-  async indexVolume(volumePath: string) {
-    console.log("Indexing", volumePath);
+  async indexVolume(volumePath: string, logger: pino.Logger) {
+    logger.debug("Indexing started");
 
     const disk = await this.getDeviceMeta(volumePath);
 
@@ -168,6 +169,11 @@ class Indexer {
       "kMDItemKind == Folder",
     );
 
+    logger.debug(
+      { files: files.length, folders: folders.length },
+      "Spotlight search complete",
+    );
+
     const data = [
       ...files.map(
         f =>
@@ -189,10 +195,12 @@ class Indexer {
       ),
     ].filter(f => f.path);
 
+    logger.debug("Writing index to DB");
     this.insertIndex(deviceId)(data);
+    logger.debug("Indexing finished");
   }
 
-  async indexAllVolumes() {
+  async indexAllVolumes(logger: pino.Logger) {
     return Promise.all(
       (await systeminformation.blockDevices())
         .filter(
@@ -201,12 +209,17 @@ class Indexer {
             d.mount.startsWith("/Volumes/") &&
             !BLACKLIST.map(b => `/Volumes/${b}`).includes(d.mount),
         )
-        .map(d => (this.indexVolume(d.mount), d)),
+        .map(
+          d => (
+            this.indexVolume(d.mount, logger.child({ volume: d.label })), d
+          ),
+        ),
     );
   }
 }
 
 const main = async () => {
+  const logger = pino({ level: "debug" });
   const cachePath = path.join(os.homedir(), ".spotlight-offline");
 
   try {
@@ -220,16 +233,18 @@ const main = async () => {
   let watchedDevices: string[] = [];
 
   chokidar.watch("/Volumes", { depth: 0 }).on("addDir", async volumePath => {
+    const volumeLogger = logger.child({ volume: path.basename(volumePath) });
     if (volumePath.split("/").length !== 3) {
       return;
     }
 
-    if (!BLACKLIST.map(b => `/Volumes/${b}`).includes(volumePath)) {
+    if (BLACKLIST.map(b => `/Volumes/${b}`).includes(volumePath)) {
       return;
     }
 
-    console.log("Detected", volumePath);
-    await indexer.indexVolume(volumePath);
+    volumeLogger.debug("Detected a new volume");
+
+    await indexer.indexVolume(volumePath, volumeLogger);
     watchedDevices.push(volumePath);
   });
 };

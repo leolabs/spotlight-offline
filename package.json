@@ -4,25 +4,24 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "@types/node": "^11.13.8",
     "better-sqlite3": "^5.4.0",
     "chokidar": "^2.1.5",
-    "drivelist": "^8.0.6",
     "node-uuid": "^1.4.8",
-    "sqlite3": "^4.0.6",
+    "pino": "^5.12.3",
     "systeminformation": "^4.1.6",
     "ts-node": "^8.1.0",
     "tslint": "^5.16.0",
     "typescript": "^3.4.5"
   },
   "scripts": {
-    "start": "ts-node src/index.ts"
+    "start": "ts-node src/index.ts | pino-pretty -c -i pid,hostname -t"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^5.2.3",
-    "@types/drivelist": "^6.4.1",
+    "@types/node": "^11.13.8",
     "@types/node-uuid": "^0.0.28",
-    "@types/sqlite3": "^3.1.5",
-    "@types/systeminformation": "^3.23.1"
+    "@types/pino": "^5.8.6",
+    "@types/systeminformation": "^3.23.1",
+    "pino-pretty": "^2.6.1"
   }
 }
