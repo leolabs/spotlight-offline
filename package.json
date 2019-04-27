@@ -17,6 +17,9 @@
   },
   "scripts": {
     "start": "ts-node src/index.ts | pino-pretty -c -i pid,hostname -t"
+  "engines": {
+    "node": ">=10"
+  },
   },
   "devDependencies": {
     "@types/better-sqlite3": "^5.2.3",
