@@ -7,7 +7,7 @@ build:
   stage: build
   script:
     - yarn
-    - yarn build:pack
+    - yarn build:pack --mac
   artifacts:
     expire_in: 1 day
     paths:
