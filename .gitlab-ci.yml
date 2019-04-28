@@ -1,0 +1,16 @@
+stages:
+  - build
+  - deploy
+
+build:
+  image: electronuserland/builder
+  stage: build
+  script:
+    - yarn
+    - yarn build:pack
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - dist/*-mac.zip
+  only:
+    - master
