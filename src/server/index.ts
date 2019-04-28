@@ -1,5 +1,6 @@
 import express from "express";
 import pino from "pino";
+import path from "path";
 import { OutputItem } from "../types/alfred";
 import { Search } from "./database";
 import { formatRelative } from "date-fns";
@@ -28,7 +29,7 @@ export const startServer = (
       f =>
         ({
           title: f.name,
-          subtitle: `${f.label} · Last seen: ${formatRelative(
+          subtitle: `${f.label + path.dirname(f.path)} · ${formatRelative(
             f.last_seen,
             Date.now(),
           )}`,

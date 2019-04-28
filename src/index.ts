@@ -6,9 +6,9 @@ import pino from "pino";
 import Indexer from "./indexer";
 import { startServer } from "./server";
 
-const BLACKLIST = ["BOOTCAMP", "GoogleDrive"];
+export const BLACKLIST = ["Macintosh HD", "BOOTCAMP", "GoogleDrive"];
 
-const main = async () => {
+export const setup = async () => {
   const logger = pino({ level: "debug" });
   const cachePath = path.join(os.homedir(), ".spotlight-offline");
 
@@ -18,28 +18,16 @@ const main = async () => {
     await fs.mkdir(cachePath);
   }
 
-  const indexer = new Indexer(cachePath, BLACKLIST);
+  return { logger, cachePath };
+};
 
-  let watchedDevices: string[] = [];
-
-  chokidar.watch("/Volumes", { depth: 0 }).on("addDir", async volumePath => {
-    await new Promise(res => setTimeout(res, 1000));
-    const volumeLogger = logger.child({ volume: path.basename(volumePath) });
-    if (volumePath.split("/").length !== 3) {
-      return;
-    }
-
-    if (BLACKLIST.map(b => `/Volumes/${b}`).includes(volumePath)) {
-      return;
-    }
-
-    volumeLogger.debug("Detected a new volume");
-
-    await indexer.indexVolume(volumePath, volumeLogger);
-    watchedDevices.push(volumePath);
-  });
-
+const main = async () => {
+  const { logger, cachePath } = await setup();
+  new Indexer(cachePath, BLACKLIST, logger);
   startServer(logger.child({ component: "Server" }), cachePath);
 };
 
-main();
+// Run the daemon when called via CLI
+if (require.main === module) {
+  main();
+}

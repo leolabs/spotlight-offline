@@ -5,6 +5,8 @@ import path from "path";
 import Database from "better-sqlite3";
 import systeminformation from "systeminformation";
 import uuid from "node-uuid";
+import chokidar from "chokidar";
+import EventEmitter from "eventemitter3";
 
 import migration_00 from "./migrations/00_initial";
 
@@ -31,8 +33,24 @@ export interface DeviceMeta {
   type: string;
 }
 
-export default class Indexer {
+export default class Indexer extends EventEmitter {
   database: Database.Database;
+  watchedDevices = new Set<string>();
+  _currentlyIndexing: number = 0;
+
+  set currentlyIndexing(num: number) {
+    this._currentlyIndexing = Math.max(num, 0);
+
+    if (this._currentlyIndexing === 0) {
+      this.emit("status", "Idle");
+    } else {
+      this.emit("status", `Indexing ${num} ${num != 1 ? "volumes" : "volume"}`);
+    }
+  }
+
+  get currentlyIndexing() {
+    return this._currentlyIndexing;
+  }
 
   queryDevice = (uuid: string): Device | null =>
     this.database
@@ -73,9 +91,44 @@ export default class Indexer {
       }
     });
 
-  constructor(dbFolder: string, private blacklist: string[]) {
+  constructor(
+    dbFolder: string,
+    private blacklist: string[],
+    private logger: pino.Logger,
+  ) {
+    super();
     this.database = new Database(path.join(dbFolder, "index.db"));
     this.database.exec(migration_00);
+
+    chokidar
+      .watch("/Volumes", { depth: 0 })
+      .on("addDir", async volumePath => {
+        await new Promise(res => setTimeout(res, 1000));
+        const volumeLogger = logger.child({
+          volume: path.basename(volumePath),
+        });
+        if (volumePath.split("/").length !== 3) {
+          return;
+        }
+
+        if (blacklist.map(b => `/Volumes/${b}`).includes(volumePath)) {
+          return;
+        }
+
+        volumeLogger.debug("Detected a new volume");
+        this.watchedDevices.add(volumePath);
+        this.emit("device-added", volumePath, this.watchedDevices);
+
+        try {
+          await this.indexVolume(volumePath, volumeLogger);
+        } catch (e) {
+          this.emit("error", e);
+        }
+      })
+      .on("unlinkDir", volumePath => {
+        this.watchedDevices.delete(volumePath);
+        this.emit("device-removed", volumePath, this.watchedDevices);
+      });
   }
 
   async querySpotlight(
@@ -135,59 +188,64 @@ export default class Indexer {
   }
 
   async indexVolume(volumePath: string, logger: pino.Logger) {
+    this.currentlyIndexing++;
     logger.debug("Indexing started");
 
-    const disk = await this.getDeviceMeta(volumePath);
+    try {
+      const disk = await this.getDeviceMeta(volumePath);
 
-    const device = this.queryDevice(disk.uuid);
-    let deviceId: number;
+      const device = this.queryDevice(disk.uuid);
+      let deviceId: number;
 
-    if (!device) {
-      const insert = this.insertDevice(disk.uuid, disk.label, disk.type);
-      deviceId = Number(insert.lastInsertRowid);
-    } else {
-      this.updateDevice(disk.uuid);
-      deviceId = device.id!;
+      if (!device) {
+        const insert = this.insertDevice(disk.uuid, disk.label, disk.type);
+        deviceId = Number(insert.lastInsertRowid);
+      } else {
+        this.updateDevice(disk.uuid);
+        deviceId = device.id!;
+      }
+
+      const files = await this.querySpotlight(
+        volumePath,
+        "kMDItemKind != Folder",
+      );
+      const folders = await this.querySpotlight(
+        volumePath,
+        "kMDItemKind == Folder",
+      );
+
+      logger.debug(
+        { files: files.length, folders: folders.length },
+        "Spotlight search complete",
+      );
+
+      const data = [
+        ...files.map(
+          f =>
+            ({
+              device_id: deviceId,
+              name: path.basename(f),
+              path: f.substr(volumePath.length),
+              type: "File",
+            } as IndexedFile),
+        ),
+        ...folders.map(
+          f =>
+            ({
+              device_id: deviceId,
+              name: path.basename(f),
+              path: f.substr(volumePath.length),
+              type: "Folder",
+            } as IndexedFile),
+        ),
+      ].filter(f => f.path);
+
+      logger.debug("Writing index to DB");
+      this.insertIndex(deviceId)(data);
+      logger.debug("Indexing finished");
+    } finally {
+      this.currentlyIndexing--;
     }
-
-    const files = await this.querySpotlight(
-      volumePath,
-      "kMDItemKind != Folder",
-    );
-    const folders = await this.querySpotlight(
-      volumePath,
-      "kMDItemKind == Folder",
-    );
-
-    logger.debug(
-      { files: files.length, folders: folders.length },
-      "Spotlight search complete",
-    );
-
-    const data = [
-      ...files.map(
-        f =>
-          ({
-            device_id: deviceId,
-            name: path.basename(f),
-            path: f.substr(volumePath.length),
-            type: "File",
-          } as IndexedFile),
-      ),
-      ...folders.map(
-        f =>
-          ({
-            device_id: deviceId,
-            name: path.basename(f),
-            path: f.substr(volumePath.length),
-            type: "Folder",
-          } as IndexedFile),
-      ),
-    ].filter(f => f.path);
-
-    logger.debug("Writing index to DB");
-    this.insertIndex(deviceId)(data);
-    logger.debug("Indexing finished");
   }
 
   async indexAllVolumes(logger: pino.Logger) {
