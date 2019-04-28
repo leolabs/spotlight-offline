@@ -25,7 +25,7 @@
     "start": "ts-node src/index.ts | pino-pretty -c -i pid,hostname -t",
     "start:electron": "tsc && electron . | pino-pretty -c -i pid,hostname -t",
     "build": "tsc && electron-builder --dir",
-    "build:pack": "electron-builder"
+    "build:pack": "tsc && electron-builder"
   },
   "engines": {
     "node": ">=10"
